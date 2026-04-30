@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Диагностика | Система Диагностики Заболеваний</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-shadow { box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); }
+        .symptom-btn { transition: all 0.3s ease; }
+        .symptom-btn:hover { transform: translateY(-2px); }
+        .symptom-btn.selected { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-color: transparent; }
+        .disease-card { transition: all 0.4s ease; }
+        .disease-card:hover { transform: translateY(-5px); }
+        .confidence-bar { transition: width 1s ease-out; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #667eea; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold">AI Диагностика</h1>
+                        <p class="text-sm opacity-80">Система диагностики заболеваний на основе ИИ</p>
+                    </div>
+                </div>
+                <button onclick="toggleSymptomList()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all">
+                    Все симптомы
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Left Panel -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Search -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <label class="block text-gray-700 font-semibold mb-3">Поиск симптомов</label>
+                    <input type="text" id="symptomSearch" placeholder="Начните вводить название симптома..." 
+                           class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
+                           oninput="filterSymptoms()">
+                </div>
+
+                <!-- Categories -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Выберите симптомы</h2>
+                    <div class="flex flex-wrap gap-2 mb-4" id="categoryTabs">
+                        <button onclick="filterByCategory('all')" class="category-btn px-4 py-2 rounded-full bg-purple-100 text-purple-700 text-sm">Все</button>
+                        <button onclick="filterByCategory('general')" class="category-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm">Общие</button>
+                        <button onclick="filterByCategory('skin')" class="category-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm">Кожные</button>
+                        <button onclick="filterByCategory('neuro')" class="category-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm">Неврологические</button>
+                        <button onclick="filterByCategory('digestive')" class="category-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm">ЖКТ</button>
+                        <button onclick="filterByCategory('respiratory')" class="category-btn px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm">Дыхательные</button>
+                    </div>
+                    <div id="symptomsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar p-2"></div>
+                    
+                    <!-- Selected -->
+                    <div class="mt-6 pt-6 border-t">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Выбрано: <span id="selectedCount" class="text-purple-600">0</span></h3>
+                        <div id="selectedSymptoms" class="flex flex-wrap gap-2 min-h-12 p-3 bg-gray-50 rounded-xl"></div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mt-6 flex gap-4">
+                        <button onclick="diagnose()" id="diagnoseBtn" class="flex-1 gradient-bg text-white py-4 rounded-xl font-semibold hover:opacity-90">
+                            Диагностировать
+                        </button>
+                        <button onclick="clearSelection()" class="px-6 py-4 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-100">
+                            Очистить
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Examples -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Быстрые примеры</h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <button onclick="loadExample('cold')" class="p-4 border-2 border-blue-200 rounded-xl hover:bg-blue-50 text-left">
+                            <div class="font-semibold text-gray-700">Простуда</div>
+                            <p class="text-xs text-gray-500">чихание, насморк, кашель</p>
+                        </button>
+                        <button onclick="loadExample('diabetes')" class="p-4 border-2 border-green-200 rounded-xl hover:bg-green-50 text-left">
+                            <div class="font-semibold text-gray-700">Диабет</div>
+                            <p class="text-xs text-gray-500">усталость, жажда, частое мочеиспускание</p>
+                        </button>
+                        <button onclick="loadExample('allergy')" class="p-4 border-2 border-orange-200 rounded-xl hover:bg-orange-50 text-left">
+                            <div class="font-semibold text-gray-700">Аллергия</div>
+                            <p class="text-xs text-gray-500">зуд, сыпь, чихание</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Results -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl card-shadow p-6 sticky top-8">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Результаты</h2>
+                    
+                    <div id="initialState" class="text-center py-12">
+                        <div class="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-4xl">🔬</span>
+                        </div>
+                        <p class="text-gray-500">Выберите симптомы и нажмите "Диагностировать"</p>
+                    </div>
+
+                    <div id="loadingState" class="hidden text-center py-12">
+                        <div class="loading-spinner mx-auto mb-4"></div>
+                        <p class="text-gray-500">Анализ симптомов...</p>
+                    </div>
+
+                    <div id="resultsState" class="hidden space-y-4"></div>
+
+                    <div id="treatmentSection" class="hidden mt-6 pt-6 border-t">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3">Рекомендации по лечению</h3>
+                        <div id="treatmentContent" class="space-y-3"></div>
+                        <div class="mt-4 p-4 bg-blue-50 rounded-xl">
+                            <h4 class="font-semibold text-blue-800 mb-2">Профилактика</h4>
+                            <p id="preventionText" class="text-sm text-blue-700"></p>
+                        </div>
+                        <div class="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                            <p class="text-sm text-yellow-800"><strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="symptomListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold">Все симптомы</h2>
+                <button onclick="toggleSymptomList()" class="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar max-h-[60vh]">
+                <div id="fullSymptomList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-8 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-gray-400">© 2024 AI Diagnosis.</p>
+        </div>
+    </footer>
+
+    <script>
+        let selectedSymptoms = new Set();
+        let allSymptoms = [];
+        let categories = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSymptoms();
+            renderSymptoms('all');
+        });
+
+        async function loadSymptoms() {
+            const res = await fetch('/api/symptoms');
+            const data = await res.json();
+            allSymptoms = data.symptoms;
+
+            const catRes = await fetch('/api/symptoms/categories');
+            const catData = await catRes.json();
+            categories = catData.categories;
+        }
+
+        function renderSymptoms(category = 'all', searchTerm = '') {
+            const grid = document.getElementById('symptomsGrid');
+            grid.innerHTML = '';
+            
+            let symptoms = category === 'all' 
+                ? allSymptoms 
+                : (categories[category] || []);
+            
+            if (searchTerm) {
+                symptoms = symptoms.filter(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
+            }
+
+            symptoms.forEach(symptom => {
+                const btn = document.createElement('button');
+                btn.className = `symptom-btn px-3 py-2 border-2 rounded-lg text-sm ${selectedSymptoms.has(symptom) ? 'selected' : 'border-gray-200 text-gray-700 hover:border-purple-400'}`;
+                btn.textContent = symptom;
+                btn.onclick = () => toggleSymptom(symptom);
+                grid.appendChild(btn);
+            });
+        }
+
+        function toggleSymptom(symptom) {
+            if (selectedSymptoms.has(symptom)) {
+                selectedSymptoms.delete(symptom);
+            } else {
+                selectedSymptoms.add(symptom);
+            }
+            updateSelectedSymptoms();
+            renderSymptoms(getCurrentCategory());
+        }
+
+        function updateSelectedSymptoms() {
+            const container = document.getElementById('selectedSymptoms');
+            document.getElementById('selectedCount').textContent = selectedSymptoms.size;
+            
+            if (selectedSymptoms.size === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-sm">Выберите симптомы</p>';
+            } else {
+                container.innerHTML = '';
+                selectedSymptoms.forEach(symptom => {
+                    const tag = document.createElement('div');
+                    tag.className = 'flex items-center space-x-2 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm';
+                    tag.innerHTML = `<span>${symptom}</span><button onclick="toggleSymptom('${symptom}')" class="hover:text-purple-900">✕</button>`;
+                    container.appendChild(tag);
+                });
+            }
+        }
+
+        function getCurrentCategory() {
+            const active = document.querySelector('.category-btn.bg-purple-100');
+            const map = {'Все': 'all', 'Общие': 'general', 'Кожные': 'skin', 'Неврологические': 'neuro', 'ЖКТ': 'digestive', 'Дыхательные': 'respiratory'};
+            return map[active?.textContent] || 'all';
+        }
+
+        function filterByCategory(category) {
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('bg-purple-100', 'text-purple-700');
+                btn.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            event.target.classList.remove('bg-gray-100', 'text-gray-700');
+            event.target.classList.add('bg-purple-100', 'text-purple-700');
+            renderSymptoms(category);
+        }
+
+        function filterSymptoms() {
+            renderSymptoms(getCurrentCategory(), document.getElementById('symptomSearch').value);
+        }
+
+        function clearSelection() {
+            selectedSymptoms.clear();
+            updateSelectedSymptoms();
+            renderSymptoms('all');
+            resetResults();
+        }
+
+        function resetResults() {
+            document.getElementById('initialState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('resultsState').classList.add('hidden');
+            document.getElementById('treatmentSection').classList.add('hidden');
+        }
+
+        function loadExample(type) {
+            clearSelection();
+            const examples = {
+                cold: ['чихание', 'насморк', 'кашель', 'температура', 'головная боль'],
+                diabetes: ['усталость', 'потеря веса', 'частое мочеиспускание', 'жажда'],
+                allergy: ['зуд', 'сыпь', 'чихание', 'насморк', 'покраснение глаз']
+            };
+            examples[type]?.forEach(s => { if(allSymptoms.includes(s)) selectedSymptoms.add(s); });
+            updateSelectedSymptoms();
+            renderSymptoms('all');
+        }
+
+        function toggleSymptomList() {
+            document.getElementById('symptomListModal').classList.toggle('hidden');
+            if (!document.getElementById('symptomListModal').classList.contains('hidden')) {
+                renderFullList();
+            }
+        }
+
+        function renderFullList() {
+            const container = document.getElementById('fullSymptomList');
+            container.innerHTML = '';
+            allSymptoms.forEach(symptom => {
+                const btn = document.createElement('button');
+                btn.className = `symptom-btn px-3 py-2 border-2 rounded-lg text-sm ${selectedSymptoms.has(symptom) ? 'selected' : 'border-gray-200 text-gray-700'}`;
+                btn.textContent = symptom;
+                btn.onclick = () => { toggleSymptom(symptom); renderFullList(); };
+                container.appendChild(btn);
+            });
+        }
+
+        async function diagnose() {
+            if (selectedSymptoms.size === 0) {
+                alert('Выберите хотя бы один симптом');
+                return;
+            }
+
+            document.getElementById('initialState').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('resultsState').classList.add('hidden');
+            document.getElementById('treatmentSection').classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/diagnose', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({symptoms: Array.from(selectedSymptoms)})
+                });
+                const data = await res.json();
+
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('resultsState').classList.remove('hidden');
+                document.getElementById('resultsState').classList.add('fade-in');
+
+                const container = document.getElementById('resultsState');
+                container.innerHTML = '';
+
+                data.predictions.forEach((pred, i) => {
+                    const card = document.createElement('div');
+                    card.className = `disease-card p-4 border-2 rounded-xl fade-in ${i === 0 ? 'border-green-400 bg-green-50' : i === 1 ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`;
+                    card.style.animationDelay = `${i * 0.1}s`;
+                    card.innerHTML = `
+                        <div class="flex justify-between mb-3">
+                            <h3 class="font-bold text-gray-800">${pred.disease}</h3>
+                            <span class="text-sm font-semibold ${i === 0 ? 'text-green-600' : 'text-gray-600'}">${pred.confidence.toFixed(1)}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="confidence-bar h-3 rounded-full ${i === 0 ? 'bg-green-500' : 'bg-gray-400'}" style="width: 0%" data-width="${pred.confidence}%"></div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                    setTimeout(() => {
+                        card.querySelector('.confidence-bar').style.width = card.querySelector('.confidence-bar').dataset.width;
+                    }, 100);
+
+                    if (i === 0) {
+                        showTreatment(pred);
+                    }
+                });
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+                resetResults();
+            }
+        }
+
+        function showTreatment(pred) {
+            const section = document.getElementById('treatmentSection');
+            const content = document.getElementById('treatmentContent');
+            section.classList.remove('hidden');
+            
+            content.innerHTML = pred.treatments.map(t => `
+                <div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="text-green-600">✓</span>
+                    <span class="text-sm text-gray-700">${t}</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('preventionText').textContent = pred.prevention;
+        }
+    </script>
+</body>
+</html>
